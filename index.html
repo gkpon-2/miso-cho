@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>ミソ帳</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="ミソ帳">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<style>
+:root{
+  --paper:#F5F0E1;
+  --card:#FCFAF1;
+  --ink:#3A3530;
+  --ink-soft:#8A8275;
+  --rule:rgba(110,145,180,.22);
+  --margin:#D96C5F;
+  --shadow:rgba(90,70,40,.12);
+  --chip-bg:#EFE8D5;
+  --c-nichijo:#E0B23C;
+  --c-chara:#D96C5F;
+  --c-settei:#6FA56B;
+  --c-serif:#5B8FB5;
+  --c-series:#8E7CC3;
+  --c-sakuhin:#B5835A;
+  --c-none:#A9A294;
+  --star:#E0A23C;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#1E1C16;
+    --card:#2A2720;
+    --ink:#E6DFCC;
+    --ink-soft:#9A927F;
+    --rule:rgba(140,165,200,.13);
+    --margin:#B85F54;
+    --shadow:rgba(0,0,0,.35);
+    --chip-bg:#363226;
+  }
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;
+  background:var(--paper);
+  background-image:repeating-linear-gradient(to bottom, transparent 0 27px, var(--rule) 27px 28px);
+  color:var(--ink);
+  padding-bottom:env(safe-area-inset-bottom);
+  overscroll-behavior-y:contain;
+}
+/* 赤いマージン線（ページ全体） */
+body::before{
+  content:"";position:fixed;top:0;bottom:0;left:22px;width:1.5px;
+  background:var(--margin);opacity:.55;pointer-events:none;z-index:0;
+}
+.serif{font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif}
+
+header{
+  position:sticky;top:0;z-index:20;
+  background:var(--paper);
+  padding:calc(env(safe-area-inset-top) + 10px) 16px 8px 34px;
+  display:flex;align-items:center;gap:10px;
+  border-bottom:1.5px solid var(--margin);
+}
+header h1{
+  font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+  font-size:22px;font-weight:700;letter-spacing:.12em;flex:1;
+}
+header button{
+  background:none;border:none;font-size:20px;color:var(--ink);
+  padding:6px 8px;cursor:pointer;line-height:1;
+}
+
+/* ── クイック入力 ── */
+#capture{padding:12px 16px 4px 34px;position:relative;z-index:1}
+#capture textarea{
+  width:100%;min-height:56px;max-height:160px;resize:none;
+  border:none;background:transparent;color:var(--ink);
+  font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+  font-size:17px;line-height:28px;
+  outline:none;
+}
+#capture textarea::placeholder{color:var(--ink-soft);opacity:.7}
+#capRow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 0 10px}
+.catchip{
+  border:1.5px solid var(--c, var(--c-none));color:var(--ink);
+  background:var(--chip-bg);
+  border-radius:14px;padding:5px 11px;font-size:13px;cursor:pointer;user-select:none;
+}
+.catchip.on{background:var(--c, var(--c-none));color:#fff;font-weight:600}
+#saveBtn{
+  margin-left:auto;border:none;border-radius:8px;padding:8px 18px;
+  background:var(--ink);color:var(--paper);font-size:14px;font-weight:700;cursor:pointer;
+}
+#saveBtn:disabled{opacity:.3}
+
+/* ── インデックスタブ ── */
+#tabs{
+  display:flex;gap:4px;overflow-x:auto;padding:10px 16px 0 30px;
+  scrollbar-width:none;position:relative;z-index:1;
+}
+#tabs::-webkit-scrollbar{display:none}
+.tab{
+  flex:0 0 auto;padding:7px 13px 9px;font-size:13px;color:var(--ink);
+  background:var(--chip-bg);border:1px solid var(--shadow);border-bottom:none;
+  border-radius:9px 9px 0 0;cursor:pointer;user-select:none;
+  border-top:3.5px solid var(--c, var(--ink-soft));
+  opacity:.65;transform:translateY(3px);transition:.12s;white-space:nowrap;
+}
+.tab.on{opacity:1;transform:translateY(0);background:var(--card);font-weight:700}
+#tabline{height:1px;background:var(--shadow);margin:0 0 4px}
+
+/* ── 検索 ── */
+#searchWrap{display:none;padding:8px 16px 4px 34px}
+#searchWrap.show{display:block}
+#searchWrap input{
+  width:100%;border:none;border-bottom:1.5px solid var(--ink-soft);
+  background:transparent;color:var(--ink);font-size:16px;padding:6px 2px;outline:none;
+}
+
+/* ── メモ一覧 ── */
+#list{padding:10px 14px 90px 28px;position:relative;z-index:1}
+.memo{
+  background:var(--card);border-radius:4px;margin-bottom:12px;
+  box-shadow:0 1px 4px var(--shadow);
+  padding:12px 12px 10px 16px;position:relative;cursor:pointer;
+  background-image:repeating-linear-gradient(to bottom, transparent 0 27px, var(--rule) 27px 28px);
+}
+.memo .edge{position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:4px 0 0 4px;display:flex;flex-direction:column}
+.memo .edge i{flex:1}
+.memo .txt{
+  font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+  font-size:16px;line-height:28px;white-space:pre-wrap;word-break:break-word;
+  display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;
+}
+.memo .meta{
+  display:flex;align-items:center;gap:8px;margin-top:7px;
+  font-size:12px;color:var(--ink-soft);
+}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.kids{background:var(--chip-bg);border-radius:10px;padding:1px 8px;font-size:11.5px}
+.starBtn{margin-left:auto;background:none;border:none;font-size:19px;cursor:pointer;color:var(--ink-soft);padding:2px 4px;line-height:1}
+.starBtn.on{color:var(--star)}
+#empty{text-align:center;color:var(--ink-soft);padding:48px 20px;font-size:14px;line-height:2}
+
+/* ── 詳細画面 ── */
+#detail{
+  position:fixed;inset:0;z-index:50;background:var(--paper);
+  background-image:repeating-linear-gradient(to bottom, transparent 0 27px, var(--rule) 27px 28px);
+  display:none;flex-direction:column;
+}
+#detail.show{display:flex}
+#detail::before{
+  content:"";position:absolute;top:0;bottom:0;left:22px;width:1.5px;
+  background:var(--margin);opacity:.55;pointer-events:none;
+}
+#dHead{
+  position:sticky;top:0;display:flex;align-items:center;gap:6px;
+  padding:calc(env(safe-area-inset-top) + 10px) 12px 8px 30px;
+  background:var(--paper);border-bottom:1.5px solid var(--margin);
+}
+#dHead .sp{flex:1}
+#dHead button{background:none;border:none;font-size:15px;color:var(--ink);padding:6px 8px;cursor:pointer}
+#dBody{flex:1;overflow-y:auto;padding:14px 16px 20px 34px}
+#dText{
+  font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+  font-size:17px;line-height:28px;white-space:pre-wrap;word-break:break-word;
+}
+#dCats{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px}
+#dDate{font-size:12px;color:var(--ink-soft);margin-top:6px}
+#dKidsTitle{
+  font-size:13px;color:var(--ink-soft);margin:22px 0 8px;letter-spacing:.1em;
+  border-bottom:1px dashed var(--ink-soft);padding-bottom:4px;
+}
+.kid{
+  position:relative;padding:8px 4px 8px 16px;margin-bottom:4px;
+  border-left:2.5px solid var(--margin);
+}
+.kid .ktxt{
+  font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+  font-size:15.5px;line-height:28px;white-space:pre-wrap;word-break:break-word;
+}
+.kid .kmeta{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-soft);margin-top:4px}
+.kid .kdel{background:none;border:none;color:var(--ink-soft);font-size:13px;cursor:pointer;padding:2px 6px}
+#dAppend{
+  padding:10px 16px calc(env(safe-area-inset-bottom) + 12px) 34px;
+  border-top:1px solid var(--shadow);background:var(--paper);
+  display:flex;gap:8px;align-items:flex-end;
+}
+#dAppend textarea{
+  flex:1;min-height:40px;max-height:120px;resize:none;border:none;background:transparent;
+  color:var(--ink);font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+  font-size:16px;line-height:28px;outline:none;
+}
+#dAppend button{
+  border:none;border-radius:8px;padding:8px 14px;background:var(--ink);
+  color:var(--paper);font-size:13.5px;font-weight:700;cursor:pointer;
+}
+#dAppend button:disabled{opacity:.3}
+
+/* 編集モード */
+#dEditArea{
+  display:none;width:100%;min-height:120px;border:1px dashed var(--ink-soft);
+  border-radius:6px;background:var(--card);color:var(--ink);padding:10px;
+  font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:17px;line-height:28px;outline:none;
+}
+.editRow{display:none;gap:8px;margin-top:10px}
+.editRow button{border:none;border-radius:8px;padding:8px 16px;font-size:13.5px;font-weight:700;cursor:pointer}
+.editRow .ok{background:var(--ink);color:var(--paper)}
+.editRow .ng{background:var(--chip-bg);color:var(--ink)}
+#detail.editing #dText{display:none}
+#detail.editing #dEditArea,#detail.editing .editRow{display:block}
+#detail.editing .editRow{display:flex}
+
+/* ── メニュー ── */
+#menu{
+  position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.35);display:none;
+}
+#menu.show{display:block}
+#menuBox{
+  position:absolute;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 20px);
+  background:var(--card);border-radius:14px;overflow:hidden;
+  box-shadow:0 6px 30px rgba(0,0,0,.3);
+}
+#menuBox button{
+  display:block;width:100%;padding:16px;background:none;border:none;
+  border-bottom:1px solid var(--shadow);color:var(--ink);font-size:15.5px;cursor:pointer;text-align:center;
+}
+#menuBox button:last-child{border-bottom:none}
+#menuBox .danger{color:var(--margin)}
+#menuInfo{padding:12px;font-size:12px;color:var(--ink-soft);text-align:center;border-bottom:1px solid var(--shadow)}
+
+.toast{
+  position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 80px);transform:translateX(-50%);
+  background:var(--ink);color:var(--paper);padding:9px 18px;border-radius:20px;
+  font-size:13.5px;z-index:99;opacity:0;transition:.25s;pointer-events:none;white-space:nowrap;
+}
+.toast.show{opacity:.95}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ミソ帳</h1>
+  <button id="btnSearch" aria-label="検索">🔍</button>
+  <button id="btnMenu" aria-label="メニュー">⋯</button>
+</header>
+
+<div id="capture">
+  <textarea id="capText" placeholder="ミソを書き留める…" rows="2"></textarea>
+  <div id="capRow">
+    <span id="capChips"></span>
+    <button id="saveBtn" disabled>保存</button>
+  </div>
+</div>
+
+<div id="searchWrap"><input id="searchInput" type="search" placeholder="全文検索…"></div>
+
+<div id="tabs"></div>
+<div id="tabline"></div>
+
+<div id="list"></div>
+
+<!-- 詳細 -->
+<div id="detail">
+  <div id="dHead">
+    <button id="dBack">‹ 戻る</button>
+    <span class="sp"></span>
+    <button id="dStar">☆</button>
+    <button id="dEdit">編集</button>
+    <button id="dDel" style="color:var(--margin)">削除</button>
+  </div>
+  <div id="dBody">
+    <div id="dText"></div>
+    <textarea id="dEditArea"></textarea>
+    <div class="editRow">
+      <button class="ok" id="dEditSave">保存</button>
+      <button class="ng" id="dEditCancel">キャンセル</button>
+    </div>
+    <div id="dCats"></div>
+    <div id="dDate"></div>
+    <div id="dKidsTitle">追記</div>
+    <div id="dKids"></div>
+  </div>
+  <div id="dAppend">
+    <textarea id="dAppendText" placeholder="このミソに追記…" rows="1"></textarea>
+    <button id="dAppendBtn" disabled>追記</button>
+  </div>
+</div>
+
+<!-- メニュー -->
+<div id="menu">
+  <div id="menuBox">
+    <div id="menuInfo"></div>
+    <button id="mExport">JSONエクスポート（バックアップ）</button>
+    <button id="mImport">JSONインポート（復元・統合）</button>
+    <button id="mClose">閉じる</button>
+  </div>
+</div>
+<input type="file" id="importFile" accept=".json,application/json" style="display:none">
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ─────────────────────────────────────────
+   データ層
+   ※ STORAGE_KEY は今後のバージョンでも絶対に変更しない。
+   構造を変える場合は data.version を上げて migrate() に処理を足す。
+───────────────────────────────────────── */
+const STORAGE_KEY = "misocho_v1";
+
+const CATS = [
+  {id:"nichijo", label:"日常",     color:"var(--c-nichijo)"},
+  {id:"chara",   label:"キャラ",   color:"var(--c-chara)"},
+  {id:"settei",  label:"設定",     color:"var(--c-settei)"},
+  {id:"serif",   label:"セリフ",   color:"var(--c-serif)"},
+  {id:"series",  label:"シリーズ", color:"var(--c-series)"},
+  {id:"sakuhin", label:"作品の記憶", color:"var(--c-sakuhin)"},
+];
+const catById = id => CATS.find(c => c.id === id);
+
+let data = load();
+
+function load(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return {version:1, memos:[]};
+    const d = JSON.parse(raw);
+    return migrate(d);
+  }catch(e){
+    // 壊れたデータは上書きせず退避してから初期化
+    try{ localStorage.setItem(STORAGE_KEY + "_broken_" + Date.now(), localStorage.getItem(STORAGE_KEY)); }catch(_){}
+    return {version:1, memos:[]};
+  }
+}
+function migrate(d){
+  if(!d || typeof d !== "object") return {version:1, memos:[]};
+  if(!Array.isArray(d.memos)) d.memos = [];
+  if(!d.version) d.version = 1;
+  // 将来: if(d.version === 1){ ...変換... ; d.version = 2; }
+  return d;
+}
+function save(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+
+/* ───────────── 状態 ───────────── */
+let filter = "all";       // all | star | none | カテゴリid
+let query = "";
+let currentId = null;     // 詳細表示中の親メモid
+let capCats = new Set();  // 入力中の選択カテゴリ
+
+/* ───────────── ユーティリティ ───────────── */
+const $ = s => document.querySelector(s);
+function fmtDate(ts){
+  const d = new Date(ts);
+  return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+}
+function esc(s){
+  return s.replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+}
+function toast(msg){
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._tm);
+  t._tm = setTimeout(()=>t.classList.remove("show"), 1800);
+}
+function autoGrow(ta){
+  ta.style.height = "auto";
+  ta.style.height = Math.min(ta.scrollHeight, 160) + "px";
+}
+
+/* ───────────── クイック入力 ───────────── */
+function renderCapChips(){
+  $("#capChips").innerHTML = CATS.map(c =>
+    `<span class="catchip ${capCats.has(c.id)?"on":""}" data-id="${c.id}" style="--c:${c.color}">${c.label}</span>`
+  ).join("");
+}
+$("#capChips") && renderCapChips();
+$("#capRow").addEventListener("click", e=>{
+  const chip = e.target.closest(".catchip");
+  if(!chip) return;
+  const id = chip.dataset.id;
+  capCats.has(id) ? capCats.delete(id) : capCats.add(id);
+  renderCapChips();
+});
+const capText = $("#capText");
+capText.addEventListener("input", ()=>{
+  $("#saveBtn").disabled = !capText.value.trim();
+  autoGrow(capText);
+});
+$("#saveBtn").addEventListener("click", ()=>{
+  const text = capText.value.trim();
+  if(!text) return;
+  data.memos.unshift({
+    id: uid(), text,
+    cats: [...capCats],
+    star: false,
+    created: Date.now(), updated: Date.now(),
+    children: []
+  });
+  save();
+  capText.value = "";
+  autoGrow(capText);
+  $("#saveBtn").disabled = true;
+  capCats.clear();
+  renderCapChips();
+  renderList();
+  toast("書き留めました");
+});
+
+/* ───────────── タブ ───────────── */
+function renderTabs(){
+  const tabs = [
+    {id:"all",  label:"すべて", color:"var(--ink-soft)"},
+    {id:"star", label:"★",     color:"var(--star)"},
+    ...CATS,
+    {id:"none", label:"未分類", color:"var(--c-none)"},
+  ];
+  $("#tabs").innerHTML = tabs.map(t =>
+    `<span class="tab ${filter===t.id?"on":""}" data-id="${t.id}" style="--c:${t.color}">${t.label}</span>`
+  ).join("");
+}
+$("#tabs").addEventListener("click", e=>{
+  const tab = e.target.closest(".tab");
+  if(!tab) return;
+  filter = tab.dataset.id;
+  renderTabs();
+  renderList();
+});
+
+/* ───────────── 検索 ───────────── */
+$("#btnSearch").addEventListener("click", ()=>{
+  const w = $("#searchWrap");
+  w.classList.toggle("show");
+  if(w.classList.contains("show")) $("#searchInput").focus();
+  else { $("#searchInput").value = ""; query = ""; renderList(); }
+});
+$("#searchInput").addEventListener("input", e=>{
+  query = e.target.value.trim().toLowerCase();
+  renderList();
+});
+
+/* ───────────── 一覧 ───────────── */
+function matches(m){
+  if(filter === "star" && !(m.star || m.children.some(k=>k.star))) return false;
+  if(filter === "none" && m.cats.length) return false;
+  if(filter !== "all" && filter !== "star" && filter !== "none" && !m.cats.includes(filter)) return false;
+  if(query){
+    const hay = (m.text + "\n" + m.children.map(k=>k.text).join("\n")).toLowerCase();
+    if(!hay.includes(query)) return false;
+  }
+  return true;
+}
+function renderList(){
+  const list = data.memos.filter(matches);
+  if(!list.length){
+    $("#list").innerHTML = `<div id="empty">${
+      data.memos.length ? "該当するミソがありません" : "まだ何もありません。<br>面白いと思ったら、理屈抜きで書き留める。"
+    }</div>`;
+    return;
+  }
+  $("#list").innerHTML = list.map(m=>{
+    const edges = m.cats.length
+      ? m.cats.map(c=>`<i style="background:${catById(c)?.color || "var(--c-none)"}"></i>`).join("")
+      : `<i style="background:var(--c-none)"></i>`;
+    const dots = m.cats.map(c=>`<span class="dot" style="background:${catById(c)?.color}"></span>`).join("");
+    return `<div class="memo" data-id="${m.id}">
+      <div class="edge">${edges}</div>
+      <div class="txt">${esc(m.text)}</div>
+      <div class="meta">
+        ${dots}
+        <span>${fmtDate(m.created)}</span>
+        ${m.children.length ? `<span class="kids">+${m.children.length}</span>` : ""}
+        <button class="starBtn ${m.star?"on":""}" data-star="${m.id}">${m.star?"★":"☆"}</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+$("#list").addEventListener("click", e=>{
+  const starBtn = e.target.closest("[data-star]");
+  if(starBtn){
+    const m = data.memos.find(x=>x.id === starBtn.dataset.star);
+    m.star = !m.star;
+    m.updated = Date.now();
+    save(); renderList();
+    return;
+  }
+  const card = e.target.closest(".memo");
+  if(card) openDetail(card.dataset.id);
+});
+
+/* ───────────── 詳細 ───────────── */
+function openDetail(id){
+  currentId = id;
+  $("#detail").classList.add("show");
+  $("#detail").classList.remove("editing");
+  renderDetail();
+}
+function closeDetail(){
+  $("#detail").classList.remove("show");
+  currentId = null;
+  renderList();
+}
+function cur(){ return data.memos.find(m=>m.id === currentId); }
+
+function renderDetail(){
+  const m = cur();
+  if(!m){ closeDetail(); return; }
+  $("#dText").textContent = m.text;
+  $("#dStar").textContent = m.star ? "★" : "☆";
+  $("#dStar").style.color = m.star ? "var(--star)" : "var(--ink)";
+  $("#dCats").innerHTML = CATS.map(c =>
+    `<span class="catchip ${m.cats.includes(c.id)?"on":""}" data-id="${c.id}" style="--c:${c.color}">${c.label}</span>`
+  ).join("");
+  $("#dDate").textContent = "作成 " + fmtDate(m.created);
+  $("#dKidsTitle").textContent = `追記（${m.children.length}）`;
+  $("#dKids").innerHTML = m.children.map(k =>
+    `<div class="kid" data-kid="${k.id}">
+      <div class="ktxt">${esc(k.text)}</div>
+      <div class="kmeta">
+        <span>${fmtDate(k.created)}</span>
+        <button class="starBtn ${k.star?"on":""}" data-kstar="${k.id}" style="margin-left:0">${k.star?"★":"☆"}</button>
+        <button class="kdel" data-kdel="${k.id}">削除</button>
+      </div>
+    </div>`
+  ).join("") || `<div style="color:var(--ink-soft);font-size:13.5px;padding:6px 0">まだ追記はありません</div>`;
+}
+$("#dBack").addEventListener("click", closeDetail);
+$("#dStar").addEventListener("click", ()=>{
+  const m = cur(); if(!m) return;
+  m.star = !m.star; m.updated = Date.now();
+  save(); renderDetail();
+});
+$("#dDel").addEventListener("click", ()=>{
+  const m = cur(); if(!m) return;
+  if(!confirm("このミソを追記ごと削除します。よろしいですか？")) return;
+  data.memos = data.memos.filter(x=>x.id !== m.id);
+  save(); closeDetail();
+  toast("削除しました");
+});
+$("#dCats").addEventListener("click", e=>{
+  const chip = e.target.closest(".catchip");
+  if(!chip) return;
+  const m = cur(); if(!m) return;
+  const id = chip.dataset.id;
+  m.cats = m.cats.includes(id) ? m.cats.filter(c=>c!==id) : [...m.cats, id];
+  m.updated = Date.now();
+  save(); renderDetail();
+});
+
+/* 親テキスト編集 */
+$("#dEdit").addEventListener("click", ()=>{
+  const m = cur(); if(!m) return;
+  $("#dEditArea").value = m.text;
+  $("#detail").classList.add("editing");
+  $("#dEditArea").focus();
+});
+$("#dEditSave").addEventListener("click", ()=>{
+  const m = cur(); if(!m) return;
+  const v = $("#dEditArea").value.trim();
+  if(v){ m.text = v; m.updated = Date.now(); save(); }
+  $("#detail").classList.remove("editing");
+  renderDetail();
+});
+$("#dEditCancel").addEventListener("click", ()=>{
+  $("#detail").classList.remove("editing");
+});
+
+/* 追記 */
+const dAppendText = $("#dAppendText");
+dAppendText.addEventListener("input", ()=>{
+  $("#dAppendBtn").disabled = !dAppendText.value.trim();
+  dAppendText.style.height = "auto";
+  dAppendText.style.height = Math.min(dAppendText.scrollHeight, 120) + "px";
+});
+$("#dAppendBtn").addEventListener("click", ()=>{
+  const m = cur(); if(!m) return;
+  const text = dAppendText.value.trim();
+  if(!text) return;
+  m.children.push({id: uid(), text, star:false, created: Date.now()});
+  m.updated = Date.now();
+  save();
+  dAppendText.value = "";
+  dAppendText.style.height = "auto";
+  $("#dAppendBtn").disabled = true;
+  renderDetail();
+  toast("追記しました");
+});
+
+/* 追記の★・削除・編集 */
+$("#dKids").addEventListener("click", e=>{
+  const m = cur(); if(!m) return;
+  const ks = e.target.closest("[data-kstar]");
+  if(ks){
+    const k = m.children.find(x=>x.id === ks.dataset.kstar);
+    k.star = !k.star; m.updated = Date.now();
+    save(); renderDetail(); return;
+  }
+  const kd = e.target.closest("[data-kdel]");
+  if(kd){
+    if(!confirm("この追記を削除しますか？")) return;
+    m.children = m.children.filter(x=>x.id !== kd.dataset.kdel);
+    m.updated = Date.now();
+    save(); renderDetail(); return;
+  }
+  const ktxt = e.target.closest(".ktxt");
+  if(ktxt){
+    const kidEl = ktxt.closest(".kid");
+    const k = m.children.find(x=>x.id === kidEl.dataset.kid);
+    const nv = prompt("追記を編集", k.text);
+    if(nv !== null && nv.trim()){
+      k.text = nv.trim(); m.updated = Date.now();
+      save(); renderDetail();
+    }
+  }
+});
+
+/* ───────────── メニュー / エクスポート・インポート ───────────── */
+$("#btnMenu").addEventListener("click", ()=>{
+  const total = data.memos.length;
+  const kids = data.memos.reduce((a,m)=>a+m.children.length,0);
+  $("#menuInfo").textContent = `ミソ ${total}件 ／ 追記 ${kids}件`;
+  $("#menu").classList.add("show");
+});
+$("#mClose").addEventListener("click", ()=>$("#menu").classList.remove("show"));
+$("#menu").addEventListener("click", e=>{
+  if(e.target.id === "menu") $("#menu").classList.remove("show");
+});
+
+$("#mExport").addEventListener("click", ()=>{
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+  const a = document.createElement("a");
+  const d = new Date();
+  a.href = URL.createObjectURL(blob);
+  a.download = `misocho_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  $("#menu").classList.remove("show");
+  toast("エクスポートしました");
+});
+
+$("#mImport").addEventListener("click", ()=>$("#importFile").click());
+$("#importFile").addEventListener("change", e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const imported = migrate(JSON.parse(reader.result));
+      const existing = new Set(data.memos.map(m=>m.id));
+      let added = 0;
+      for(const m of imported.memos){
+        if(!existing.has(m.id)){ data.memos.push(m); added++; }
+      }
+      data.memos.sort((a,b)=>b.created - a.created);
+      save();
+      renderList();
+      $("#menu").classList.remove("show");
+      toast(`${added}件を取り込みました`);
+    }catch(err){
+      alert("読み込めませんでした。ミソ帳のJSONファイルか確認してください。");
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+});
+
+/* ───────────── 初期化 ───────────── */
+renderCapChips();
+renderTabs();
+renderList();
+
+/* Service Worker: network-first 方式。
+   開き直すだけで最新版になり、ホーム画面の再追加は不要（＝データが消えない） */
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("./sw.js");
+}
+</script>
+</body>
+</html>
