@@ -188,6 +188,44 @@ header button{
 }
 .kid .kmeta{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-soft);margin-top:4px}
 .kid .kdel{background:none;border:none;color:var(--ink-soft);font-size:13px;cursor:pointer;padding:2px 6px}
+.kid .kwrite{background:none;border:1px solid var(--ink-soft);border-radius:10px;color:var(--ink-soft);font-size:11.5px;cursor:pointer;padding:2px 9px}
+.kbody{
+  margin-top:6px;padding:7px 9px;border-radius:5px;background:var(--chip-bg);
+  font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+  font-size:13.5px;line-height:22px;color:var(--ink);opacity:.85;
+  white-space:pre-wrap;word-break:break-word;cursor:pointer;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+
+/* ── 長文エディタ ── */
+#writer{
+  position:fixed;inset:0;z-index:70;background:var(--paper);
+  background-image:repeating-linear-gradient(to bottom, transparent 0 27px, var(--rule) 27px 28px);
+  display:none;flex-direction:column;
+}
+#writer.show{display:flex}
+#writer::before{
+  content:"";position:absolute;top:0;bottom:0;left:22px;width:1.5px;
+  background:var(--margin);opacity:.55;pointer-events:none;
+}
+#wHead{
+  display:flex;align-items:center;gap:8px;
+  padding:calc(env(safe-area-inset-top) + 10px) 14px 8px 30px;
+  background:var(--paper);border-bottom:1.5px solid var(--margin);
+}
+#wHead button{background:none;border:none;font-size:15px;color:var(--ink);padding:6px 8px;cursor:pointer}
+#wStatus{margin-left:auto;font-size:12px;color:var(--ink-soft);transition:opacity .4s}
+#wTitle{
+  padding:10px 16px 2px 34px;font-size:13px;color:var(--ink-soft);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#wText{
+  flex:1;border:none;background:transparent;resize:none;outline:none;
+  padding:8px 16px calc(env(safe-area-inset-bottom) + 16px) 34px;
+  color:var(--ink);
+  font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+  font-size:16.5px;line-height:28px;
+}
 #dAppend{
   padding:10px 16px calc(env(safe-area-inset-bottom) + 12px) 34px;
   border-top:1px solid var(--shadow);background:var(--paper);
@@ -291,6 +329,16 @@ header button{
     <textarea id="dAppendText" placeholder="このミソに追記…" rows="1"></textarea>
     <button id="dAppendBtn" disabled>追記</button>
   </div>
+</div>
+
+<!-- 長文エディタ -->
+<div id="writer">
+  <div id="wHead">
+    <button id="wBack">‹ 閉じる</button>
+    <span id="wStatus"></span>
+  </div>
+  <div id="wTitle"></div>
+  <textarea id="wText" placeholder="ここに長文を書く…（自動保存）"></textarea>
 </div>
 
 <!-- メニュー -->
@@ -455,7 +503,7 @@ function matches(m){
   if(filter === "none" && m.cats.length) return false;
   if(filter !== "all" && filter !== "star" && filter !== "none" && !m.cats.includes(filter)) return false;
   if(query){
-    const hay = (m.text + "\n" + m.children.map(k=>k.text).join("\n")).toLowerCase();
+    const hay = (m.text + "\n" + m.children.map(k=>k.text + "\n" + (k.body||"")).join("\n")).toLowerCase();
     if(!hay.includes(query)) return false;
   }
   return true;
@@ -526,9 +574,11 @@ function renderDetail(){
   $("#dKids").innerHTML = m.children.map(k =>
     `<div class="kid" data-kid="${k.id}">
       <div class="ktxt">${esc(k.text)}</div>
+      ${k.body ? `<div class="kbody" data-kbody="${k.id}">${esc(k.body)}</div>` : ""}
       <div class="kmeta">
         <span>${fmtDate(k.created)}</span>
         <button class="starBtn ${k.star?"on":""}" data-kstar="${k.id}" style="margin-left:0">${k.star?"★":"☆"}</button>
+        <button class="kwrite" data-kwrite="${k.id}">${k.body ? "本文を開く" : "本文を書く"}</button>
         <button class="kdel" data-kdel="${k.id}">削除</button>
       </div>
     </div>`
@@ -596,7 +646,7 @@ $("#dAppendBtn").addEventListener("click", ()=>{
   toast("追記しました");
 });
 
-/* 追記の★・削除・編集 */
+/* 追記の★・削除・編集・本文 */
 $("#dKids").addEventListener("click", e=>{
   const m = cur(); if(!m) return;
   const ks = e.target.closest("[data-kstar]");
@@ -607,11 +657,15 @@ $("#dKids").addEventListener("click", e=>{
   }
   const kd = e.target.closest("[data-kdel]");
   if(kd){
-    if(!confirm("この追記を削除しますか？")) return;
+    if(!confirm("この追記を削除しますか？（本文も一緒に消えます）")) return;
     m.children = m.children.filter(x=>x.id !== kd.dataset.kdel);
     m.updated = Date.now();
     save(); renderDetail(); return;
   }
+  const kw = e.target.closest("[data-kwrite]");
+  if(kw){ openWriter(kw.dataset.kwrite); return; }
+  const kb = e.target.closest("[data-kbody]");
+  if(kb){ openWriter(kb.dataset.kbody); return; }
   const ktxt = e.target.closest(".ktxt");
   if(ktxt){
     const kidEl = ktxt.closest(".kid");
@@ -622,6 +676,51 @@ $("#dKids").addEventListener("click", e=>{
       save(); renderDetail();
     }
   }
+});
+
+/* ───────────── 長文エディタ ───────────── */
+let writerKidId = null;
+let writerTimer = null;
+
+function openWriter(kidId){
+  const m = cur(); if(!m) return;
+  const k = m.children.find(x=>x.id === kidId);
+  if(!k) return;
+  writerKidId = kidId;
+  $("#wTitle").textContent = k.text;
+  $("#wText").value = k.body || "";
+  $("#wStatus").textContent = "";
+  $("#writer").classList.add("show");
+  $("#wText").focus();
+}
+$("#wText").addEventListener("input", ()=>{
+  clearTimeout(writerTimer);
+  $("#wStatus").textContent = "…";
+  writerTimer = setTimeout(()=>{
+    const m = cur(); if(!m || !writerKidId) return;
+    const k = m.children.find(x=>x.id === writerKidId);
+    if(!k) return;
+    k.body = $("#wText").value;
+    m.updated = Date.now();
+    save();
+    $("#wStatus").textContent = "保存しました";
+  }, 400);
+});
+$("#wBack").addEventListener("click", ()=>{
+  // 閉じる前に未保存分を確実に保存
+  clearTimeout(writerTimer);
+  const m = cur();
+  if(m && writerKidId){
+    const k = m.children.find(x=>x.id === writerKidId);
+    if(k){
+      k.body = $("#wText").value;
+      m.updated = Date.now();
+      save();
+    }
+  }
+  writerKidId = null;
+  $("#writer").classList.remove("show");
+  renderDetail();
 });
 
 /* ───────────── メニュー / エクスポート・インポート ───────────── */
