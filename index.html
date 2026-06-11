@@ -84,10 +84,11 @@ header button{
   outline:none;
 }
 #capture textarea::placeholder{color:var(--ink-soft);opacity:.7}
-#capRow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 0 10px}
+#capRow{display:flex;gap:8px;align-items:flex-end;padding:6px 0 10px}
+#capChips{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
 .catchip{
   border:1.5px solid var(--c, var(--c-none));color:var(--ink);
-  background:var(--chip-bg);
+  background:var(--chip-bg);white-space:nowrap;
   border-radius:14px;padding:5px 11px;font-size:13px;cursor:pointer;user-select:none;
 }
 .catchip.on{background:var(--c, var(--c-none));color:#fff;font-weight:600}
@@ -97,21 +98,23 @@ header button{
 }
 #saveBtn:disabled{opacity:.3}
 
-/* ── インデックスタブ ── */
+/* ── インデックスタブ（右端・縦並び） ── */
 #tabs{
-  display:flex;gap:4px;overflow-x:auto;padding:10px 16px 0 30px;
-  scrollbar-width:none;position:relative;z-index:1;
+  position:fixed;right:0;top:52%;transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:5px;z-index:15;
 }
-#tabs::-webkit-scrollbar{display:none}
 .tab{
-  flex:0 0 auto;padding:7px 13px 9px;font-size:13px;color:var(--ink);
-  background:var(--chip-bg);border:1px solid var(--shadow);border-bottom:none;
-  border-radius:9px 9px 0 0;cursor:pointer;user-select:none;
-  border-top:3.5px solid var(--c, var(--ink-soft));
-  opacity:.65;transform:translateY(3px);transition:.12s;white-space:nowrap;
+  writing-mode:vertical-rl;text-orientation:mixed;
+  padding:11px 6px 11px 7px;font-size:12.5px;letter-spacing:.18em;color:var(--ink);
+  background:var(--chip-bg);border:1px solid var(--shadow);border-right:none;
+  border-radius:9px 0 0 9px;cursor:pointer;user-select:none;
+  border-left:4px solid var(--c, var(--ink-soft));
+  opacity:.6;transform:translateX(6px);transition:.15s;white-space:nowrap;
 }
-.tab.on{opacity:1;transform:translateY(0);background:var(--card);font-weight:700}
-#tabline{height:1px;background:var(--shadow);margin:0 0 4px}
+.tab.on{
+  opacity:1;transform:translateX(0);background:var(--card);font-weight:700;
+  box-shadow:-2px 1px 6px var(--shadow);
+}
 
 /* ── 検索 ── */
 #searchWrap{display:none;padding:8px 16px 4px 34px}
@@ -122,7 +125,7 @@ header button{
 }
 
 /* ── メモ一覧 ── */
-#list{padding:10px 14px 90px 28px;position:relative;z-index:1}
+#list{padding:10px 50px 90px 28px;position:relative;z-index:1}
 .memo{
   background:var(--card);border-radius:4px;margin-bottom:12px;
   box-shadow:0 1px 4px var(--shadow);
@@ -260,7 +263,6 @@ header button{
 <div id="searchWrap"><input id="searchInput" type="search" placeholder="全文検索…"></div>
 
 <div id="tabs"></div>
-<div id="tabline"></div>
 
 <div id="list"></div>
 
@@ -319,7 +321,7 @@ const CATS = [
   {id:"settei",  label:"設定",     color:"var(--c-settei)"},
   {id:"serif",   label:"セリフ",   color:"var(--c-serif)"},
   {id:"series",  label:"シリーズ", color:"var(--c-series)"},
-  {id:"sakuhin", label:"作品の記憶", color:"var(--c-sakuhin)"},
+  {id:"sakuhin", label:"作品の記憶", tab:"作品", color:"var(--c-sakuhin)"},
 ];
 const catById = id => CATS.find(c => c.id === id);
 
@@ -424,7 +426,7 @@ function renderTabs(){
     {id:"none", label:"未分類", color:"var(--c-none)"},
   ];
   $("#tabs").innerHTML = tabs.map(t =>
-    `<span class="tab ${filter===t.id?"on":""}" data-id="${t.id}" style="--c:${t.color}">${t.label}</span>`
+    `<span class="tab ${filter===t.id?"on":""}" data-id="${t.id}" style="--c:${t.color}">${t.tab || t.label}</span>`
   ).join("");
 }
 $("#tabs").addEventListener("click", e=>{
